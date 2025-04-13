@@ -127,3 +127,18 @@ func TestLeaderFailure(t *testing.T) {
 		t.Fatalf("After leader failure, Get() = %v, want %v", got, "value2")
 	}
 }
+
+func FuzzPutGet(f *testing.F) {
+	path := "../config/client.yml"
+	clientEnds := GetClientEnds(path)
+	client := MakeKVClient(clientEnds)
+	f.Add("key", "value")
+	f.Add("1sd12fsaw", "rnaoufngg2")
+	f.Fuzz(func(t *testing.T, key string, value string) {
+		client.Put(key, value)
+		v := client.Get(key)
+		if v != value {
+			t.Errorf("Get(%v) = %v, want %v", key, v, value)
+		}
+	})
+}
