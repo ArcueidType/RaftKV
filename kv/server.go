@@ -4,6 +4,7 @@ import (
 	"errors"
 	uuid "github.com/satori/go.uuid"
 	"github.com/syndtr/goleveldb/leveldb"
+	"log"
 	"net/rpc"
 	"raftkv/raft"
 	"raftkv/utils"
@@ -157,6 +158,7 @@ func (kv *KVServer) Restart(args *KillArgs, reply *KillReply) error {
 		panic(err)
 	}
 	kv.leveldb = db
+	log.Println("server dead", kv.killed())
 	reply.IsDead = kv.killed()
 	return nil
 }

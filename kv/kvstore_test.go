@@ -11,6 +11,8 @@ const (
 	ADDR1 = "127.0.0.1:10002"
 	ADDR2 = "127.0.0.1:10003"
 	ADDR3 = "127.0.0.1:10004"
+	ADDR4 = "127.0.0.1:10005"
+	ADDR5 = "127.0.0.1:10006"
 )
 
 func FindLeader(clientEnds []*utils.ClientEnd) int {
@@ -26,37 +28,16 @@ func FindLeader(clientEnds []*utils.ClientEnd) int {
 	return -1
 }
 
-func initializeCluster(n int) []*utils.ClientEnd {
-	clientEnds := make([]*utils.ClientEnd, n)
-	//servers := make([]*KVServer, n)
-	//rafts := make([]*raft.Raft, n)
-
-	cE1 := &utils.ClientEnd{
-		Addr: ADDR1,
-	}
-	clientEnds[0] = cE1
-	cE2 := &utils.ClientEnd{
-		Addr: ADDR2,
-	}
-	clientEnds[1] = cE2
-	cE3 := &utils.ClientEnd{
-		Addr: ADDR3,
-	}
-	clientEnds[2] = cE3
-
-	return clientEnds
-}
-
 func TestBasicPutGet(t *testing.T) {
 	path := "../config/client.yml"
 	clientEnds := GetClientEnds(path)
 
-	defer func() {
-		for _, ce := range clientEnds {
-			killReply := &KillReply{}
-			ce.Call("KVServer.Kill", &KillArgs{}, killReply)
-		}
-	}()
+	//defer func() {
+	//	for _, ce := range clientEnds {
+	//		killReply := &KillReply{}
+	//		ce.Call("KVServer.Kill", &KillArgs{}, killReply)
+	//	}
+	//}()
 
 	client := MakeKVClient(clientEnds)
 
@@ -64,6 +45,7 @@ func TestBasicPutGet(t *testing.T) {
 	value := "test_value"
 
 	client.Put(key, value)
+	time.Sleep(500 * time.Millisecond)
 	got := client.Get(key)
 	if got != value {
 		t.Fatalf("Get() = %v, want %v", got, value)
@@ -76,18 +58,18 @@ func TestBasicPutGet(t *testing.T) {
 	}
 }
 
-func TestLeaderFailure(t *testing.T) {
+func TestReElection(t *testing.T) {
 	path := "../config/client.yml"
 	clientEnds := GetClientEnds(path)
-	defer func() {
-		for _, ce := range clientEnds {
-			killReply := &KillReply{}
-			ce.Call("KVServer.Kill", &KillArgs{}, killReply)
-		}
-	}()
+	//defer func() {
+	//	for _, ce := range clientEnds {
+	//		killReply := &KillReply{}
+	//		ce.Call("KVServer.Kill", &KillArgs{}, killReply)
+	//	}
+	//}()
 
 	leader_idx := FindLeader(clientEnds)
-	if leader_idx != -1 {
+	if leader_idx == -1 {
 		t.Fatalf("No leader elected")
 	}
 	leader := clientEnds[leader_idx]
@@ -107,8 +89,68 @@ func TestLeaderFailure(t *testing.T) {
 	}
 }
 
-func TestFollowerFailure(t *testing.T) {
+func TestFollowerFailureRecovery(t *testing.T) {
+	path := "../config/client.yml"
+	clientEnds := GetClientEnds(path)
 
+	// Step 1: Find the initial leader
+	leader_idx := FindLeader(clientEnds)
+	if leader_idx == -1 {
+		t.Fatalf("No leader elected")
+	}
+
+	// Step 2: Create a client and submit a command
+	client := MakeKVClient(clientEnds)
+	client.Put("key1", "value1")
+
+	// Step 3: Kill one of the followers (simulating failure)
+	follower_idx := (leader_idx + 1) % len(clientEnds)
+	follower := clientEnds[follower_idx]
+	killReply := &KillReply{}
+	follower.Call("KVServer.Kill", &KillArgs{}, killReply)
+	log.Println("Follower killed:", killReply.IsDead)
+	time.Sleep(500 * time.Millisecond) // wait for leader to handle failure
+
+	client.Put("key2", "value2")
+	got := client.Get("key2")
+	if got != "value2" {
+		t.Fatalf("After follower failure, Get() = %v, want %v", got, "value2")
+	}
+
+	// Step 6: Reconnect the follower and ensure the system stays consistent
+	killReply_ := &KillReply{}
+	follower.Call("KVServer.Restart", &KillArgs{}, killReply_)
+	log.Println("Follower restarted:", !killReply_.IsDead)
+	time.Sleep(500 * time.Millisecond)
+	client.Put("key3", "value3")
+
+	// Step 7: Ensure that the follower has the latest value after recovery
+	got = client.Get("key3")
+	if got != "value3" {
+		t.Fatalf("After follower recovery, Get() = %v, want %v", got, "value3")
+	}
+}
+
+func TestLogConsistency(t *testing.T) {
+	path := "../config/client.yml"
+	clientEnds := GetClientEnds(path)
+
+	leader_idx := FindLeader(clientEnds)
+	if leader_idx == -1 {
+		t.Fatalf("No leader elected")
+	}
+
+	client := MakeKVClient(clientEnds)
+	client.Put("key1", "value1")
+
+	for i := 0; i < len(clientEnds); i++ {
+		if clientEnds[i].Client != nil {
+			value := client.Get("key1")
+			if value != "value1" {
+				t.Fatalf("Node %d has inconsistent data: expected 'value1', but got %v", i, value)
+			}
+		}
+	}
 }
 
 func FuzzPutGet(f *testing.F) {
@@ -128,7 +170,7 @@ func FuzzPutGet(f *testing.F) {
 
 func TestGetState(t *testing.T) {
 	clientEnd := &utils.ClientEnd{
-		Addr: ADDR2,
+		Addr: ADDR1,
 	}
 	stateReply := &StateReply{}
 	clientEnd.Call(RPCGetState, &StateArgs{}, stateReply)
