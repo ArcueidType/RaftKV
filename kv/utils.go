@@ -57,3 +57,8 @@ type StateReply struct {
 	Term     int
 	IsLeader bool
 }
+
+type KillArgs struct{}
+type KillReply struct {
+	IsDead bool
+}

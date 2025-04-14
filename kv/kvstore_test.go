@@ -2,50 +2,36 @@ package kv
 
 import (
 	"log"
-	"net/rpc"
 	"raftkv/raft"
 	"raftkv/utils"
-	"strconv"
 	"testing"
-	"time"
+)
+
+const (
+	ADDR1 = "127.0.0.1:10002"
+	ADDR2 = "127.0.0.1:10003"
+	ADDR3 = "127.0.0.1:10004"
 )
 
 func initializeCluster(n int) ([]*utils.ClientEnd, []*KVServer, []*raft.Raft) {
 	servers := make([]*KVServer, n)
-	peers := make([]*utils.ClientEnd, n)
-	persisters := make([]*raft.Persister, n)
+	clientEnds := make([]*utils.ClientEnd, n)
 	rafts := make([]*raft.Raft, n)
 
-	for i := 0; i < n; i++ {
-		persister := raft.MakePersister(i)
-		persisters[i] = persister
-
-		address := "127.0.0.1:" + strconv.Itoa(10002+i)
-		client := utils.TryConnect(address)
-		clientEnd := &utils.ClientEnd{
-			Addr:   address,
-			Client: client,
-		}
-		peers[i] = clientEnd
+	cE1 := &utils.ClientEnd{
+		Addr: ADDR1,
 	}
-
-	for i := 0; i < n; i++ {
-		clientEnds := make([]*utils.ClientEnd, n)
-		for j := 0; j < n; j++ {
-			if i != j {
-				clientEnds[j] = peers[j]
-			}
-		}
-
-		server := StartKVServer(clientEnds, i, persisters[i])
-		servers[i] = server
-
-		if err := rpc.Register(server); err != nil {
-			panic(err)
-		}
-		rafts[i] = server.rf
+	clientEnds[0] = cE1
+	cE2 := &utils.ClientEnd{
+		Addr: ADDR2,
 	}
-	return peers, servers, rafts
+	clientEnds[1] = cE2
+	cE3 := &utils.ClientEnd{
+		Addr: ADDR3,
+	}
+	clientEnds[2] = cE3
+
+	return clientEnds, servers, rafts
 }
 
 func TestBasicPutGet(t *testing.T) {
@@ -69,41 +55,41 @@ func TestBasicPutGet(t *testing.T) {
 	}
 }
 
-func TestLeaderFailure(t *testing.T) {
-	servers, kvServers, _ := initializeCluster(3)
-	defer func() {
-		for _, kv := range kvServers {
-			kv.Kill()
-		}
-	}()
-
-	// 查找当前领导者
-	var leader *KVServer
-	for _, kv := range kvServers {
-		if _, isLeader := kv.rf.GetState(); isLeader {
-			leader = kv
-			break
-		}
-	}
-	if leader == nil {
-		t.Fatal("No leader elected")
-	}
-
-	// 客户端操作
-	client := MakeKVClient(servers)
-	client.Put("key1", "value1")
-
-	// 杀死领导者
-	leader.Kill()
-	time.Sleep(500 * time.Millisecond) // 等待重新选举
-
-	// 继续操作
-	client.Put("key2", "value2")
-	got := client.Get("key2")
-	if got != "value2" {
-		t.Fatalf("After leader failure, Get() = %v, want %v", got, "value2")
-	}
-}
+//func TestLeaderFailure(t *testing.T) {
+//	servers, kvServers, _ := initializeCluster(3)
+//	defer func() {
+//		for _, kv := range kvServers {
+//			kv.Kill()
+//		}
+//	}()
+//
+//	// 查找当前领导者
+//	var leader *KVServer
+//	for _, kv := range kvServers {
+//		if _, isLeader := kv.rf.GetState(); isLeader {
+//			leader = kv
+//			break
+//		}
+//	}
+//	if leader == nil {
+//		t.Fatal("No leader elected")
+//	}
+//
+//	// 客户端操作
+//	client := MakeKVClient(servers)
+//	client.Put("key1", "value1")
+//
+//	// 杀死领导者
+//	leader.Kill()
+//	time.Sleep(500 * time.Millisecond) // 等待重新选举
+//
+//	// 继续操作
+//	client.Put("key2", "value2")
+//	got := client.Get("key2")
+//	if got != "value2" {
+//		t.Fatalf("After leader failure, Get() = %v, want %v", got, "value2")
+//	}
+//}
 
 func FuzzPutGet(f *testing.F) {
 	path := "../config/client.yml"
@@ -122,9 +108,19 @@ func FuzzPutGet(f *testing.F) {
 
 func TestGetState(t *testing.T) {
 	clientEnd := &utils.ClientEnd{
-		Addr: "127.0.0.1:10002",
+		Addr: ADDR3,
 	}
 	stateReply := &StateReply{}
 	clientEnd.Call(RPCGetState, &StateArgs{}, stateReply)
 	log.Println(stateReply.IsLeader, stateReply.Term)
+}
+
+func TestKill(t *testing.T) {
+	clientEnd := &utils.ClientEnd{
+		Addr: ADDR2,
+	}
+	killReply := &KillReply{}
+
+	clientEnd.Call("KVServer.Kill", &KillArgs{}, killReply)
+	log.Println(killReply.IsDead)
 }

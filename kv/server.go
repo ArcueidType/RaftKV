@@ -134,12 +134,13 @@ func (kv *KVServer) IsLeader(args *StateArgs, reply *StateReply) error {
 	return nil
 }
 
-func (kv *KVServer) Kill() {
+func (kv *KVServer) Kill(args *KillArgs, reply *KillReply) {
 	atomic.StoreInt32(&kv.dead, 1)
 	kv.rf.Kill()
 	if err := kv.leveldb.Close(); err != nil {
 		panic(err)
 	}
+	reply.IsDead = kv.killed()
 }
 
 func (kv *KVServer) killed() bool {

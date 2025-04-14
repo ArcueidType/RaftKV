@@ -5,7 +5,6 @@
       <paths name="wesley">
         <serverdata>
           <mappings>
-            <mapping local="$PROJECT_DIR$/../6.5840/src" web="/" />
             <mapping local="$PROJECT_DIR$" web="/" />
           </mappings>
         </serverdata>
