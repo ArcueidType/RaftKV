@@ -128,7 +128,7 @@ func FuzzPutGet(f *testing.F) {
 
 func TestGetState(t *testing.T) {
 	clientEnd := &utils.ClientEnd{
-		Addr: ADDR1,
+		Addr: ADDR2,
 	}
 	stateReply := &StateReply{}
 	clientEnd.Call(RPCGetState, &StateArgs{}, stateReply)
@@ -137,7 +137,7 @@ func TestGetState(t *testing.T) {
 
 func TestKill(t *testing.T) {
 	clientEnd := &utils.ClientEnd{
-		Addr: ADDR2,
+		Addr: ADDR3,
 	}
 	killReply := &KillReply{}
 
