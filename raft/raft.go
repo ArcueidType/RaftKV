@@ -306,6 +306,10 @@ func (rf *Raft) killed() bool {
 	return dead == 1
 }
 
+func (rf *Raft) Restart() {
+	atomic.StoreInt32(&rf.dead, 0)
+}
+
 const (
 	CopySuccess = -1
 	CopyFailed  = -2

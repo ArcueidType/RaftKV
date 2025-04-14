@@ -134,18 +134,29 @@ func (kv *KVServer) IsLeader(args *StateArgs, reply *StateReply) error {
 	return nil
 }
 
-func (kv *KVServer) Kill(args *KillArgs, reply *KillReply) {
+func (kv *KVServer) Kill(args *KillArgs, reply *KillReply) error {
 	atomic.StoreInt32(&kv.dead, 1)
 	kv.rf.Kill()
 	if err := kv.leveldb.Close(); err != nil {
 		panic(err)
 	}
 	reply.IsDead = kv.killed()
+	return nil
 }
 
 func (kv *KVServer) killed() bool {
 	dead := atomic.LoadInt32(&kv.dead)
 	return dead == 1
+}
+
+func (kv *KVServer) Restart(args *KillArgs, reply *KillReply) error {
+	atomic.StoreInt32(&kv.dead, 0)
+	kv.rf.Restart()
+	if err := kv.leveldb.Close(); err != nil {
+		panic(err)
+	}
+	reply.IsDead = kv.killed()
+	return nil
 }
 
 func StartKVServer(servers []*utils.ClientEnd, me int, persister *raft.Persister) *KVServer {
