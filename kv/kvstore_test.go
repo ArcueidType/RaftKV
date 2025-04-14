@@ -2,6 +2,8 @@ package kv
 
 import (
 	"log"
+	"math/rand"
+	"raftkv/raft"
 	"raftkv/utils"
 	"testing"
 	"time"
@@ -185,4 +187,86 @@ func TestKill(t *testing.T) {
 
 	clientEnd.Call("KVServer.Kill", &KillArgs{}, killReply)
 	log.Println(killReply.IsDead)
+}
+
+func simulateNetworkIssues() bool {
+	// 10%概率消息丢失
+	if (rand.Int() % 1000) < 100 {
+		return false
+	} else if (rand.Int() % 1000) < 200 { // 10%概率消息长延迟但不超过electionTimeOut的一半
+		ms := rand.Int63() % (int64(raft.ElectionTimeout) / 2)
+		time.Sleep(time.Duration(ms) * time.Millisecond)
+	} else { // 80%概率延迟0~12ms
+		ms := (rand.Int63() % 13)
+		time.Sleep(time.Duration(ms) * time.Millisecond)
+	}
+	return true
+}
+
+func FuzzTest(f *testing.F) {
+	path := "../config/client.yml"
+	clientEnds := GetClientEnds(path)
+	client := MakeKVClient(clientEnds)
+
+	f.Add("key", "value")
+	f.Add("1sd12fsaw", "rnaoufngg2")
+	f.Add("testkey", "testvalue")
+	f.Add("randomkey", "randomvalue")
+
+	rand.Seed(time.Now().UnixNano())
+
+	f.Fuzz(func(t *testing.T, key string, value string) {
+		if len(key) == 0 || len(value) == 0 {
+			t.Skip("Skipping empty key or value")
+		}
+
+		// 执行 Put 操作
+		if simulateNetworkIssues() {
+			client.Put(key, value)
+
+			got := client.Get(key)
+			if got != value {
+				t.Errorf("For key %v, expected value %v, got %v", key, value, got)
+			}
+		} else {
+			t.Logf("Message lost: Skipping Put for key %v", key)
+		}
+
+		if rand.Intn(10) < 1 { // 10% 概率模拟节点崩溃
+			node := rand.Intn(len(clientEnds))
+			log.Printf("FuzzTest: Killing and restarting node %d", node)
+
+			killReply := &KillReply{}
+			clientEnds[node].Call("KVServer.Kill", &KillArgs{}, killReply)
+			time.Sleep(time.Second)
+
+			restartReply := &KillReply{}
+			clientEnds[node].Call("KVServer.Restart", &KillArgs{}, restartReply)
+			time.Sleep(time.Second)
+		} else if rand.Intn(10) < 2 { // 10% 概率模拟 Leader 崩溃
+			leaderIdx := FindLeader(clientEnds)
+			if leaderIdx != -1 {
+				leader := clientEnds[leaderIdx]
+
+				killReply := &KillReply{}
+				leader.Call("KVServer.Kill", &KillArgs{}, killReply)
+				log.Printf("Leader %d killed: %v", leaderIdx, killReply.IsDead)
+				time.Sleep(500 * time.Millisecond) // 等待新的 Leader 选举出来
+
+				// 确保新的 Leader 被选举
+				newLeaderIdx := FindLeader(clientEnds)
+				if newLeaderIdx == -1 {
+					t.Fatalf("No new leader elected after leader failure")
+				}
+				time.Sleep(1000 * time.Millisecond)
+
+				restartReply := &KillReply{}
+				leader.Call("KVServer.Restart", &KillArgs{}, restartReply)
+				time.Sleep(time.Second)
+			}
+		}
+
+		time.Sleep(time.Millisecond * time.Duration(rand.Intn(100)))
+	})
+
 }
