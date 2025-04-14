@@ -48,34 +48,10 @@ func initializeCluster(n int) ([]*utils.ClientEnd, []*KVServer, []*raft.Raft) {
 	return peers, servers, rafts
 }
 
-//func makeTestCluster(n int) ([]*utils.ClientEnd, []*KVServer) {
-//	servers := make([]*utils.ClientEnd, n)
-//	kvServers := make([]*KVServer, n)
-//	persisters := make([]*raft.Persister, n)
-//
-//	for i := 0; i < n; i++ {
-//		servers[i] = &utils.ClientEnd{}
-//		persisters[i] = raft.MakePersister(n)
-//	}
-//
-//	for i := 0; i < n; i++ {
-//		kvServers[i] = StartKVServer(servers, i, persisters[i])
-//
-//	}
-//
-//	time.Sleep(1 * time.Second)
-//	return servers, kvServers
-//}
-
 func TestBasicPutGet(t *testing.T) {
-	peers, servers, _ := initializeCluster(3)
-	defer func() {
-		for _, kv := range servers {
-			kv.Kill()
-		}
-	}()
-
-	client := MakeKVClient(peers)
+	path := "../config/client.yml"
+	clientEnds := GetClientEnds(path)
+	client := MakeKVClient(clientEnds)
 
 	key := "test_key"
 	value := "test_value"
