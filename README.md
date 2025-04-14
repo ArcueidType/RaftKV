@@ -41,6 +41,7 @@ value
 ```
 
 终端效果如图：
+
 ![terminal](./asset/terminal.png)
 
 ## 代码介绍
@@ -89,8 +90,10 @@ type Persister struct {
 
 // 用于创建一个Persister
 func MakePersister(me int) *Persister
+
 // 持久化保存RaftState
 func (ps *Persister) SaveRaftState(state []byte)
+
 // 读取持久化保存的RaftState
 func (ps *Persister) ReadRaftState() []byte
 ```
@@ -133,28 +136,39 @@ type Raft struct {
 ```go
 // 返回当前节点状态（当前Term以及当前节点是否是leader）
 func (rf *Raft) GetState() (int, bool)
+
 // 将raft状态持久化（votedFor, currentTerm, logs）
 func (rf *Raft) persist()
+
 // 从持久化的状态恢复
 func (rf *Raft) readPersist(data []byte)
+
 // 用于candidate请求其他节点进行投票
 // 支持的节点超过半数，且leader的Term是最大的，同时日志的Index也是最大的
 func (rf *Raft) RequestVote(args *RequestVoteArgs, reply *RequestVoteReply) error
+
 // 为节点的log进行AppendEntries，用于HeartBeat和log replication
 func (rf *Raft) AppendEntries(args *AppendEntriesArgs, reply *AppendEntriesReply) error
+
 // 通过RPC调用目标节点的RequestVote请求目标节点的投票
 func (rf *Raft) sendRequestVote(server int, args *RequestVoteArgs, reply *RequestVoteReply) bool
+
 // 通过RPC调用目标节点的AppendEntries用于HeartBeat和log replication
 func (rf *Raft) sendAppendEntries(server int, args *AppendEntriesArgs, reply *AppendEntriesReply) bool
+
 // 让Raft节点执行命令command，返回index, term, isLeader
 func (rf *Raft) Start(command interface{}) (int, int, bool)
+
 // 向所有follower发送日志用于复制
 func (rf *Raft) sendLogEntry(signal int)
+
 // 将提交的命令应用于状态机
 func (rf *Raft) apply()
+
 // 创建一个Raft节点实例，有一个协程根据节点身份循环进行各自的操作，还有一个协程循环进行Log Replication
 func MakeRaft(peers []*utils.ClientEnd, me int,
 persister *Persister, applyCh chan ApplyMsg) *Raft
+
 // 用于leader的选举
 func (rf *Raft) leaderElection(wonCh chan int, wgp *sync.WaitGroup)
 ```
@@ -199,10 +213,13 @@ leader    int
 
 // 创建Client实例
 func MakeKVClient(servers []*utils.ClientEnd) *Client
+
 // 对分布式数据库执行 Get(key)
 func (client *Client) Get(key string) string
+
 // 对分布式数据库执行 Put(key, value)
 func (client *Client) Put(key string, value string)
+
 // 对分布式数据库执行 Delete(key)
 func (client *Client) Delete(key string)
 ```
@@ -229,16 +246,22 @@ type KVServer struct {
 ```go
 // 查找数据库执行结果的回复
 func (kv *KVServer) findReply(op *Op, idx int, reply *CommonReply) string
+
 // 为客户端提供Get的RPC调用
 func (kv *KVServer) Get(args *GetArgs, reply *GetReply) error
+
 // 为客户端提供Put的RPC调用
 func (kv *KVServer) Put(args *PutArgs, reply *PutReply) error
+
 // 为客户端提供Delete的RPC调用
 func (kv *KVServer) Delete(args *DeleteArgs, reply *DeleteReply) error
+
 // 为客户端提供获取当前节点状态的RPC调用
 func (kv *KVServer) IsLeader(args *StateArgs, reply *StateReply) error
+
 // 创建一个KVServer实例，通过一个协程不断处理客户端的Get, Put, Delete请求
 func StartKVServer(servers []*utils.ClientEnd, me int, persister *raft.Persister) *KVServer
+
 // 循环从applyCh中读取已经应用到数据库的命令并执行
 func (kv *KVServer) opHandler()
 ```
