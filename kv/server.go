@@ -125,6 +125,15 @@ func (kv *KVServer) Delete(args *DeleteArgs, reply *DeleteReply) error {
 	return nil
 }
 
+func (kv *KVServer) IsLeader(args *StateArgs, reply *StateReply) error {
+	kv.mu.Lock()
+	defer kv.mu.Unlock()
+	term, isLeader := kv.rf.GetState()
+	reply.Term = term
+	reply.IsLeader = isLeader
+	return nil
+}
+
 func (kv *KVServer) Kill() {
 	atomic.StoreInt32(&kv.dead, 1)
 	kv.rf.Kill()

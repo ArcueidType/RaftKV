@@ -1,6 +1,7 @@
 package kv
 
 import (
+	"log"
 	"net/rpc"
 	"raftkv/raft"
 	"raftkv/utils"
@@ -141,4 +142,13 @@ func FuzzPutGet(f *testing.F) {
 			t.Errorf("Get(%v) = %v, want %v", key, v, value)
 		}
 	})
+}
+
+func TestGetState(t *testing.T) {
+	clientEnd := &utils.ClientEnd{
+		Addr: "127.0.0.1:10002",
+	}
+	stateReply := &StateReply{}
+	clientEnd.Call(RPCGetState, &StateArgs{}, stateReply)
+	log.Println(stateReply.IsLeader, stateReply.Term)
 }

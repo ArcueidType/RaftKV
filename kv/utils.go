@@ -11,6 +11,7 @@ const (
 	RPCGet         = "KVServer.Get"
 	RPCPut         = "KVServer.Put"
 	RPCDelete      = "KVServer.Delete"
+	RPCGetState    = "KVServer.IsLeader"
 	OpPut          = "Put"
 	OpGet          = "Get"
 	OpDelete       = "Delete"
@@ -49,4 +50,10 @@ type DeleteArgs struct {
 
 type DeleteReply struct {
 	Err Err
+}
+
+type StateArgs struct{}
+type StateReply struct {
+	Term     int
+	IsLeader bool
 }

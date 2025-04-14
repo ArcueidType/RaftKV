@@ -5,7 +5,8 @@
       <paths name="wesley">
         <serverdata>
           <mappings>
-            <mapping deploy="/home/wesley/datasystem/raftkv" local="$PROJECT_DIR$" web="/" />
+            <mapping local="$PROJECT_DIR$/../6.5840/src" web="/" />
+            <mapping local="$PROJECT_DIR$" web="/" />
           </mappings>
         </serverdata>
       </paths>
