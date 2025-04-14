@@ -19,7 +19,6 @@ func MakePersister(me int) *Persister {
 }
 
 func (ps *Persister) SaveRaftState(state []byte) {
-	// TODO: Disk persistence
 	ps.mu.Lock()
 	defer ps.mu.Unlock()
 	file := strconv.Itoa(ps.me) + ".log"
@@ -31,7 +30,6 @@ func (ps *Persister) SaveRaftState(state []byte) {
 }
 
 func (ps *Persister) ReadRaftState() []byte {
-	// TODO: Disk persistence
 	ps.mu.Lock()
 	defer ps.mu.Unlock()
 	file := strconv.Itoa(ps.me) + ".log"
