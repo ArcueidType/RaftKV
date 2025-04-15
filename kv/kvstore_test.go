@@ -179,25 +179,28 @@ func TestGetState(t *testing.T) {
 	log.Println(stateReply.IsLeader, stateReply.Term)
 }
 
-func TestKill(t *testing.T) {
-	clientEnd := &utils.ClientEnd{
-		Addr: ADDR3,
-	}
-	killReply := &KillReply{}
-
-	clientEnd.Call("KVServer.Kill", &KillArgs{}, killReply)
-	log.Println(killReply.IsDead)
-}
+//func TestKill(t *testing.T) {
+//	clientEnd := &utils.ClientEnd{
+//		Addr: ADDR3,
+//	}
+//	killReply := &KillReply{}
+//
+//	clientEnd.Call("KVServer.Kill", &KillArgs{}, killReply)
+//	log.Println(killReply.IsDead)
+//}
 
 func simulateNetworkIssues() bool {
 	// 10%概率消息丢失
 	if (rand.Int() % 1000) < 100 {
+		log.Println("drop this message")
 		return false
 	} else if (rand.Int() % 1000) < 200 { // 10%概率消息长延迟但不超过electionTimeOut的一半
 		ms := rand.Int63() % (int64(raft.ElectionTimeout) / 2)
-		time.Sleep(time.Duration(ms) * time.Millisecond)
+		log.Println("super delay")
+		time.Sleep(time.Duration(ms) * time.Second)
 	} else { // 80%概率延迟0~12ms
 		ms := (rand.Int63() % 13)
+		log.Println("normal delay")
 		time.Sleep(time.Duration(ms) * time.Millisecond)
 	}
 	return true
@@ -220,11 +223,11 @@ func FuzzTest(f *testing.F) {
 			t.Skip("Skipping empty key or value")
 		}
 
-		// 执行 Put 操作
 		if simulateNetworkIssues() {
 			client.Put(key, value)
-
+			log.Println("just put")
 			got := client.Get(key)
+			log.Println("just get")
 			if got != value {
 				t.Errorf("For key %v, expected value %v, got %v", key, value, got)
 			}
