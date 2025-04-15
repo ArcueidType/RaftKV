@@ -152,6 +152,7 @@ func (kv *KVServer) killed() bool {
 func (kv *KVServer) Restart(args *KillArgs, reply *KillReply) error {
 	atomic.StoreInt32(&kv.dead, 0)
 	kv.rf.Restart()
+	go kv.opHandler()
 	//db, err := leveldb.OpenFile("./db"+strconv.Itoa(kv.me), nil)
 	//if err != nil {
 	//	panic(err)

@@ -308,6 +308,76 @@ func (rf *Raft) killed() bool {
 
 func (rf *Raft) Restart() {
 	atomic.StoreInt32(&rf.dead, 0)
+	go func() {
+		for {
+			if rf.killed() {
+				return
+			}
+			rf.mu.Lock()
+			switch rf.identity {
+
+			case FOLLOWER:
+				oldHeartBeatCnt := rf.heartBeatCnt
+				rf.mu.Unlock()
+				timeout := time.Duration(randomTimeout(700, 1000)) * time.Millisecond
+				time.Sleep(timeout)
+				func() {
+					rf.mu.Lock()
+					defer rf.mu.Unlock()
+					if rf.heartBeatCnt == oldHeartBeatCnt {
+						rf.identity = CANDIDATE
+						rf.currentTerm++
+						rf.votedFor = rf.me
+						go rf.persist()
+					}
+				}()
+			case CANDIDATE:
+				rf.mu.Unlock()
+
+				wonCh := make(chan int, 2)
+				wg := sync.WaitGroup{}
+				wg.Add(1)
+				go func() {
+					wg.Wait()
+					close(wonCh)
+				}()
+
+				wg.Add(1)
+				go rf.leaderElection(wonCh, &wg)
+
+				timeout := time.Duration(randomTimeout(1000, 1400)) * time.Millisecond
+				wg.Add(1)
+				go func() {
+					time.Sleep(timeout)
+					wonCh <- ElectionTimeout
+					wg.Done()
+				}()
+
+				result := <-wonCh
+				if result == ElectionTimeout {
+					rf.mu.Lock()
+					rf.votedFor = rf.me
+					rf.currentTerm++
+					rf.mu.Unlock()
+					go rf.persist()
+				}
+				wg.Done()
+			default:
+				rf.mu.Unlock()
+				rf.doAppendCh <- HeartBeat
+				time.Sleep(time.Millisecond * 100)
+			}
+		}
+	}()
+
+	go func() {
+		for {
+			if rf.killed() {
+				return
+			}
+			rf.sendLogEntry(<-rf.doAppendCh)
+		}
+	}()
 }
 
 const (
