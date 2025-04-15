@@ -189,7 +189,7 @@ func StartKVServer(servers []*utils.ClientEnd, me int, persister *raft.Persister
 func (kv *KVServer) opHandler() {
 	for {
 		if kv.killed() {
-			return
+			continue
 		}
 
 		applyMsg := <-kv.applyCh
