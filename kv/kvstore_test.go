@@ -81,8 +81,10 @@ func TestReElection(t *testing.T) {
 
 	killReply := &KillReply{}
 	leader.Call("KVServer.Kill", &KillArgs{}, killReply)
-	log.Println(killReply.IsDead)
+	//log.Println(killReply.IsDead)
 	time.Sleep(500 * time.Millisecond)
+	restartReply := &KillReply{}
+	leader.Call("KVServer.Restart", &restartReply, restartReply)
 
 	client.Put("key2", "value2")
 	got := client.Get("key2")
@@ -172,7 +174,7 @@ func FuzzPutGet(f *testing.F) {
 
 func TestGetState(t *testing.T) {
 	clientEnd := &utils.ClientEnd{
-		Addr: ADDR1,
+		Addr: ADDR3,
 	}
 	stateReply := &StateReply{}
 	clientEnd.Call(RPCGetState, &StateArgs{}, stateReply)

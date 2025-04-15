@@ -268,3 +268,139 @@ func (kv *KVServer) opHandler()
 
 ## 测试
 
+本项目的测试主要是为了验证实现的Raft算法的功能正确性和安全性。其中，安全性测试需要验证实现的Raft满足原论文中的以下性质：
+
+![property](./asset/property.png)
+
+在这五条性质中，状态机安全性(State Machine Safety)是最重要的，前四条性质也可以理解成为了这一性质服务。
+
+本项目实现的基本测试样例如下：
+
+```go
+// KV数据库基本增删改查操作
+func TestBasicPutGet(t *testing.T)
+
+// 测试特定服务器是否为Leader
+func TestGetState(t *testing.T)
+
+// 测试Leader宕机后进行下一轮选举产生新Leader的功能
+func TestReElection(t *testing.T)
+
+// 测试Follower宕机恢复后同步Leader日志的功能
+func TestFollowerFailureRecovery(t *testing.T)
+
+// 测试日志复制的正确性和一致性
+func TestLogConsistency(t *testing.T)
+```
+
+其中，为了模拟特定服务器的宕机和恢复，调用了`raft.go`和`server.go`的函数：
+
+```go
+// raft.go
+
+// 使Raft服务器掉线
+func (rf *Raft) Kill() 
+
+// 使Raft服务器恢复运行
+func (rf *Raft) Restart()
+```
+
+```go
+//server.go
+
+// 使服务器掉线并关闭对应的KV数据库
+func (kv *KVServer) Kill(args *KillArgs, reply *KillReply) error
+
+// 使服务器恢复连接并重启对应的KV数据库
+func (kv *KVServer) Restart(args *KillArgs, reply *KillReply) error 
+```
+
+用户也可以通过`clientEnd.Call()`方法调用相应接口主动对KV服务器进行操作。
+
+在进行这些测试样例的过程中，五条安全性质能够分别得到验证（否则这些测试样例都无法通过）。
+
+此外，本项目进行了`Go fuzz`测试，模拟了消息延迟、消息丢失、节点宕机等实际场景中可能出现的负面情况，以证明其在长期运行下有足够的`fault-tolerent`能力。
+
+部分代码展示和解析：
+
+```go
+func simulateNetworkIssues() bool {
+	// 10%概率消息丢失
+	if (rand.Int() % 1000) < 100 {
+		log.Println("drop this message")
+		return false
+	} else if (rand.Int() % 1000) < 200 { // 10%概率消息长延迟但不超过electionTimeOut的一半
+		ms := rand.Int63() % (int64(raft.ElectionTimeout) / 2)
+		log.Println("super delay")
+		time.Sleep(time.Duration(ms) * time.Second)
+	} else { // 80%概率延迟0~12ms
+		ms := (rand.Int63() % 13)
+		log.Println("normal delay")
+		time.Sleep(time.Duration(ms) * time.Millisecond)
+	}
+	return true
+}
+
+func FuzzTest(f *testing.F) {
+	// 省略部分
+
+	// 每次随机生成种子
+	rand.Seed(time.Now().UnixNano())
+
+	f.Fuzz(func(t *testing.T, key string, value string) {
+		if len(key) == 0 || len(value) == 0 {
+			t.Skip("Skipping empty key or value")
+		}
+
+		if simulateNetworkIssues() {
+			client.Put(key, value)
+			log.Println("just put")
+			got := client.Get(key)
+			log.Println("just get")
+			if got != value {
+				t.Errorf("For key %v, expected value %v, got %v", key, value, got)
+			}
+		} else {
+			t.Logf("Message lost: Skipping Put for key %v", key)
+		}
+
+		if rand.Intn(10) < 1 { // 10% 概率模拟节点崩溃
+			node := rand.Intn(len(clientEnds))
+			log.Printf("FuzzTest: Killing and restarting node %d", node)
+
+			killReply := &KillReply{}
+			clientEnds[node].Call("KVServer.Kill", &KillArgs{}, killReply)
+			time.Sleep(1000 * time.Millisecond)
+
+			restartReply := &KillReply{}
+			clientEnds[node].Call("KVServer.Restart", &KillArgs{}, restartReply)
+			time.Sleep(1000 * time.Millisecond)
+		} else if rand.Intn(10) < 2 { // 10% 概率模拟 Leader 崩溃
+			leaderIdx := FindLeader(clientEnds)
+			if leaderIdx != -1 {
+				leader := clientEnds[leaderIdx]
+
+				killReply := &KillReply{}
+				leader.Call("KVServer.Kill", &KillArgs{}, killReply)
+				log.Printf("Leader %d killed: %v", leaderIdx, killReply.IsDead)
+				time.Sleep(500 * time.Millisecond) // 等待新的 Leader 选举出来
+
+				// 确保新的 Leader 被选举
+				newLeaderIdx := FindLeader(clientEnds)
+				if newLeaderIdx == -1 {
+					t.Fatalf("No new leader elected after leader failure")
+				}
+				time.Sleep(1000 * time.Millisecond)
+
+				restartReply := &KillReply{}
+				leader.Call("KVServer.Restart", &KillArgs{}, restartReply)
+				time.Sleep(1000 * time.Millisecond)
+			}
+		}
+
+		time.Sleep(time.Millisecond * time.Duration(rand.Intn(100)))
+	})
+
+}
+
+```
