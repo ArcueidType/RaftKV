@@ -2,6 +2,7 @@ package raft
 
 import (
 	"bytes"
+	"log"
 	"math/rand"
 	"raftkv/utils"
 	"strconv"
@@ -258,13 +259,38 @@ func (rf *Raft) AppendEntries(args *AppendEntriesArgs, reply *AppendEntriesReply
 }
 
 func (rf *Raft) sendRequestVote(server int, args *RequestVoteArgs, reply *RequestVoteReply) bool {
-	ok := rf.peers[server].Call("Raft.RequestVote", args, reply)
-	return ok
+	if SimulateNetworkIssues() {
+		ok := rf.peers[server].Call("Raft.RequestVote", args, reply)
+		return ok
+	} else {
+		return false
+	}
 }
 
 func (rf *Raft) sendAppendEntries(server int, args *AppendEntriesArgs, reply *AppendEntriesReply) bool {
-	ok := rf.peers[server].Call("Raft.AppendEntries", args, reply)
-	return ok
+	if SimulateNetworkIssues() {
+		ok := rf.peers[server].Call("Raft.AppendEntries", args, reply)
+		return ok
+	} else {
+		return false
+	}
+}
+
+func SimulateNetworkIssues() bool {
+	// 10%概率消息丢失
+	if (rand.Int() % 1000) < 100 {
+		log.Println("drop this message")
+		return false
+	} else if (rand.Int() % 1000) < 200 { // 10%概率消息长延迟但不超过electionTimeOut的一半
+		ms := rand.Int63() % (int64(ElectionTimeout) / 2)
+		log.Println("super delay")
+		time.Sleep(time.Duration(ms) * time.Second)
+	} else { // 80%概率延迟0~12ms
+		ms := (rand.Int63() % 13)
+		log.Println("normal delay")
+		time.Sleep(time.Duration(ms) * time.Millisecond)
+	}
+	return true
 }
 
 func (rf *Raft) Start(command interface{}) (int, int, bool) {
@@ -520,7 +546,7 @@ func MakeRaft(peers []*utils.ClientEnd, me int,
 	go func() {
 		for {
 			if rf.killed() {
-				return
+				continue
 			}
 			rf.mu.Lock()
 			switch rf.identity {
@@ -582,7 +608,7 @@ func MakeRaft(peers []*utils.ClientEnd, me int,
 	go func() {
 		for {
 			if rf.killed() {
-				return
+				continue
 			}
 			rf.sendLogEntry(<-rf.doAppendCh)
 		}

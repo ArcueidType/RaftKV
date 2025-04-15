@@ -191,23 +191,6 @@ func TestGetState(t *testing.T) {
 //	log.Println(killReply.IsDead)
 //}
 
-func simulateNetworkIssues() bool {
-	// 10%概率消息丢失
-	if (rand.Int() % 1000) < 100 {
-		log.Println("drop this message")
-		return false
-	} else if (rand.Int() % 1000) < 200 { // 10%概率消息长延迟但不超过electionTimeOut的一半
-		ms := rand.Int63() % (int64(raft.ElectionTimeout) / 2)
-		log.Println("super delay")
-		time.Sleep(time.Duration(ms) * time.Second)
-	} else { // 80%概率延迟0~12ms
-		ms := (rand.Int63() % 13)
-		log.Println("normal delay")
-		time.Sleep(time.Duration(ms) * time.Millisecond)
-	}
-	return true
-}
-
 func FuzzTest(f *testing.F) {
 	path := "../config/client.yml"
 	clientEnds := GetClientEnds(path)
@@ -225,7 +208,7 @@ func FuzzTest(f *testing.F) {
 			t.Skip("Skipping empty key or value")
 		}
 
-		if simulateNetworkIssues() {
+		if raft.SimulateNetworkIssues() {
 			client.Put(key, value)
 			log.Println("just put")
 			got := client.Get(key)
