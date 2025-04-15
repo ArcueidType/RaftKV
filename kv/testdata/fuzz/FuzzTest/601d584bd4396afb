@@ -1,3 +1,0 @@
-go test fuzz v1
-string("randomke\x82")
-string("randomvalue")
