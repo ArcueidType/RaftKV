@@ -616,7 +616,7 @@ func MakeRaft(peers []*utils.ClientEnd, me int,
 	go func() {
 		for {
 			if rf.killed() {
-				continue
+				return
 			}
 			rf.mu.Lock()
 			switch rf.identity {
@@ -678,7 +678,7 @@ func MakeRaft(peers []*utils.ClientEnd, me int,
 	go func() {
 		for {
 			if rf.killed() {
-				continue
+				return
 			}
 			rf.sendLogEntry(<-rf.doAppendCh)
 		}
